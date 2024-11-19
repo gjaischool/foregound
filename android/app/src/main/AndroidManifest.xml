@@ -2,22 +2,20 @@
     package="com.example.foreground">
     <!-- required -->   
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-
-    <!-- foregroundServiceType: dataSync -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
-    <!-- foregroundServiceType: remoteMessaging -->
+    <!--
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
-
-    <!-- for utils -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-feature android:name="android.hardware.camera" />
-    <uses-feature android:name="android.hardware.camera.front" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    -->
 
     <application
         android:label="foreground"
@@ -46,16 +44,17 @@
             </intent-filter>
         </activity>
 
-        <!-- 오버레이 서비스 설정 -->
+        <!-- 오버레이 서비스 설정
         <service
             android:name="flutter.overlay.window.flutter_overlay_window.OverlayService"
-            android:exported="false" />
+            android:exported="false" />-->
 
 
         <!-- Warning: Do not change service name. -->
         <service
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
-            android:foregroundServiceType="dataSync|remoteMessaging"
+            android:foregroundServiceType="dataSync"
+            android:enabled="true"
             android:exported="false" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

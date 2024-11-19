@@ -4,13 +4,7 @@ A new Flutter project.
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+E/flutter ( 9442): [ERROR:flutter/runtime/dart_isolate.cc(862)] Could not resolve main entrypoint function.
+E/flutter ( 9442): [ERROR:flutter/runtime/dart_isolate.cc(171)] Could not run the run main Dart entrypoint.
+E/flutter ( 9442): [ERROR:flutter/runtime/runtime_controller.cc(549)] Could not create root isolate.
+E/flutter ( 9442): [ERROR:flutter/shell/common/shell.cc(690)] Could not launch engine with configuration.
