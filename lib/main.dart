@@ -2,13 +2,12 @@ import 'dart:async'; // Timer 등 비동기 작업을 위한 패키지
 import 'dart:io'; // 플랫폼 특정 기능 사용을 위한 패키지
 import 'package:flutter/material.dart'; // Flutter UI 패키지
 import 'package:flutter_foreground_task/flutter_foreground_task.dart'; // 포그라운드 서비스 패키지
-import 'overlay_widget.dart'; // 커스텀 오버레이 위젯 파일
 
 // 콜백 함수는 항상 최상위 레벨이나 정적 함수여야 합니다.
 @pragma('vm:entry-point') // VM이 이 함수를 진입점으로 인식하도록 표시
 void startCallback() {
   debugPrint('Starting Foreground  Service...');
-  FlutterForegroundTask.setTaskHandler(MyTaskHandler()); // TaskHandler 설정
+  FlutterForegroundTask.setTaskHandler(CounterTaskHandler()); // TaskHandler 설정
   debugPrint('Foreground Service initialized successfully');
 }
 
@@ -17,12 +16,12 @@ void main() {
 
   // TaskHandler와 UI 간의 통신을 위한 포트를 초기화합니다.
   FlutterForegroundTask.initCommunicationPort();
-  runApp(const ExampleApp()); // 앱 실행
+  runApp(const MainApp()); // 앱 실행
 }
 
 // Foreground Task를 처리하는 핸들러 클래스
-class MyTaskHandler extends TaskHandler {
-  int _count = 0; // 카운터 변수
+class CounterTaskHandler extends TaskHandler {
+  int _count = 0;
 
   // 카운트 증가 및 알림 업데이트 메서드
   void _incrementCount() {
@@ -30,11 +29,9 @@ class MyTaskHandler extends TaskHandler {
 
     // 알림 내용을 업데이트합니다.
     FlutterForegroundTask.updateService(
-      notificationTitle: 'Hello MyTaskHandler :)',
+      notificationTitle: 'Hello MyTaskHandler :)', // 카메라 촬영중으로 바꾸기
       notificationText: 'count: $_count',
     );
-
-    // 메인 isolate로 데이터를 전송합니다.
     // UI로 현재 카운트 전송
     FlutterForegroundTask.sendDataToMain(_count);
   }
@@ -61,198 +58,140 @@ class MyTaskHandler extends TaskHandler {
   Future<void> onDestroy(DateTime timestamp) async {
     debugPrint('onDestroy');
   }
-
-  // UI로부터 데이터 수신 시 호출되는 메서드
-  @override
-  void onReceiveData(Object data) {
-    debugPrint('onReceiveData: $data');
-  }
 }
 
-class ExampleApp extends StatelessWidget {
-  const ExampleApp({super.key});
+class MainApp extends StatefulWidget {
+  const MainApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      routes: {
-        '/': (context) => const ExamplePage(), // 메인 페이지를 루트 경로로 설정
-      },
-      initialRoute: '/',
-    );
-  }
+  State<MainApp> createState() => _MainAppState();
 }
 
-class ExamplePage extends StatefulWidget {
-  const ExamplePage({super.key});
-
-  @override
-  State<StatefulWidget> createState() => _ExamplePageState();
-}
-
-class _ExamplePageState extends State<ExamplePage> {
-  final ValueNotifier<Object?> _taskDataListenable =
-      ValueNotifier(null); // Task 데이터 관리
-  final GlobalKey<OverlayState> _overlayKey =
-      GlobalKey<OverlayState>(); // 오버레이 상태 키
+class _MainAppState extends State<MainApp> {
+  final ValueNotifier<int?> _counter = ValueNotifier<int?>(null);
+  final GlobalKey<OverlayState> _overlayKey = GlobalKey<OverlayState>();
   OverlayEntry? _overlayEntry; // 오버레이 엔트리
   Timer? _messageTimer; // 메시지 표시 타이머
-  int? _lastValue; // 마지막 카운트 값
+  static Offset _overlayPosition = const Offset(20, 100);
 
-  // 오버레이 위젯 표시 메서드
-  void _showOverlay(int count, {bool showIncrementMessage = false}) {
-    _overlayEntry?.remove(); // 기존 오버레이 제거
-    _overlayEntry = OverlayEntry(
-      builder: (context) => DraggableCounterOverlay(
-        count: count,
-        showIncrementMessage: showIncrementMessage,
-      ),
-    );
-
-    _overlayKey.currentState?.insert(_overlayEntry!); // 새 오버레이 삽입
-  }
-
-  // 필요한 권한 요청 메서드
-  Future<void> _requestPermissions() async {
+  // 서비스 초기화
+  Future<void> _initializeService() async {
+    // 필수 권한 요청
     if (Platform.isAndroid) {
-      final NotificationPermission notificationPermission =
-          await FlutterForegroundTask.checkNotificationPermission();
-      if (notificationPermission != NotificationPermission.granted) {
+      if (await FlutterForegroundTask.checkNotificationPermission() !=
+          NotificationPermission.granted) {
         await FlutterForegroundTask.requestNotificationPermission();
       }
       // onNotificationPressed 함수가 호출되려면 "android.permission.SYSTEM_ALERT_WINDOW" 권한이 필요합니다.
-      // 권한이 거부된 상태에서 알림이 눌리면,
-      // onNotificationPressed 함수는 호출되지 않고 앱이 열립니다.
-      // onNotificationPressed나 launchApp 함수를 사용하지 않는다면,
-      // 이 코드를 작성할 필요가 없습니다.
-      // SYSTEM_ALERT_WINDOW 권한 체크 및 요청 (오버레이 표시에 필요)
       if (!await FlutterForegroundTask.canDrawOverlays) {
         await FlutterForegroundTask.openSystemAlertWindowSettings();
       }
-
       // This function requires `android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` permission.
-      // 배터리 최적화 예외 권한 (백그라운드 실행 유지에 필요)
       if (!await FlutterForegroundTask.isIgnoringBatteryOptimizations) {
         await FlutterForegroundTask.requestIgnoreBatteryOptimization();
       }
-
-      // 정확한 알람 서비스, 헬스케어 서비스, 블루투스 통신과 같이
-      // 장기 생존이 필요한 서비스를 제공하는 경우에만 이 유틸리티를 사용하세요.
-      // 이 유틸리티는 "android.permission.SCHEDULE_EXACT_ALARM" 권한이 필요합니다.
-      // 이 권한을 사용하면 구글 정책으로 인해 앱 배포가 어려워질 수 있습니다.
-      // 정확한 알람 권한 체크 및 요청
-      // if (!await FlutterForegroundTask.canScheduleExactAlarms) {
-      //   await FlutterForegroundTask.openAlarmsAndRemindersSettings();
-      // }
     }
-  }
-
-  void _initForegroundTask() {
+    // 포그라운드 서비스 초기화
     FlutterForegroundTask.init(
-      // 안드로이드 알림 옵션 설정
       androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'foreground_service',
-        channelName: 'Foreground Service Notification',
-        channelDescription: '이 알림은 포그라운드 서비스가 실행 중일 때 표시됩니다.',
-        onlyAlertOnce: true,
+        channelId: 'counter_service',
+        channelName: '카운터 서비스',
+        channelDescription: '포그라운드에서 실행되는 카운터 서비스입니다.',
         visibility: NotificationVisibility.VISIBILITY_PUBLIC,
       ),
-      // iOS 알림 옵션 설정
       iosNotificationOptions: const IOSNotificationOptions(
         showNotification: false,
-        playSound: false,
       ),
-      // 포그라운드 작업 옵션 설정
       foregroundTaskOptions: ForegroundTaskOptions(
-        eventAction: ForegroundTaskEventAction.repeat(5000), // 5초마다 반복
+        eventAction: ForegroundTaskEventAction.repeat(5000),
         autoRunOnBoot: true, // 기기 재시작 시 자동 실행
-        autoRunOnMyPackageReplaced: true, // 앱 업데이트 시 자동 실행
         allowWakeLock: true, // 절전 모드 방지
-        allowWifiLock: true, // WiFi Lock 허용
       ),
     );
-  }
-
-  // 서비스 시작 함수
-  Future<void> _startForegroundService() async {
-    debugPrint('Attempting to start foreground service...');
-
-    // 이미 실행 중이면 재시작
-    // if (await FlutterForegroundTask.isRunningService) {
-    //   return FlutterForegroundTask.restartService();
-    // }
-    // 새로 시작
+    // 서비스 시작
     await FlutterForegroundTask.startService(
-      serviceId: 256,
-      notificationTitle: '포그라운드 서비스가 실행 중입니다',
-      notificationText: '앱으로 돌아가려면 탭하세요',
-      // notificationButtons: [
-      //   const NotificationButton(id: 'btn_hello', text: 'hello'),
-      // ],
+      serviceId: 123,
+      notificationTitle: '카운터 서비스',
+      notificationText: '서비스가 시작되었습니다',
       callback: startCallback,
     );
   }
 
-  // TaskHandler로부터 데이터 수신 시 호출되는 콜백
-  void _onReceiveTaskData(Object data) {
-    debugPrint('onReceiveTaskData: $data');
-    _taskDataListenable.value = data;
+  void _updateOverlay(int count, {bool showAnimation = false}) {
+    _overlayEntry?.remove();
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Positioned(
+        left: _overlayPosition.dx,
+        top: _overlayPosition.dy,
+        child: Material(
+          color: Colors.transparent,
+          child: GestureDetector(
+            onPanUpdate: (details) {
+              _overlayPosition += details.delta;
+              _overlayEntry?.markNeedsBuild();
+            },
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 4,
+                  ),
+                ],
+              ),
+              child: Text(
+                showAnimation ? '카운트가 $count(으)로 증가되었습니다!' : '카운트: $count',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    _overlayKey.currentState?.insert(_overlayEntry!);
 
-    // 데이터가 int 타입인지 확인
-    if (data is int) {
-      final currentValue = data;
-      final isIncremented = _lastValue != null && currentValue > _lastValue!;
-
-      // 증가했을 때만 증가 메시지 표시하고 타이머 설정
-      if (isIncremented) {
-        _messageTimer?.cancel(); // 이전 타이머가 있다면 취소
-        _showOverlay(currentValue, showIncrementMessage: true);
-
-        // 2초 후에 기본 카운터 표시로 돌아감
-        _messageTimer = Timer(const Duration(seconds: 2), () {
-          if (_overlayEntry?.mounted ?? false) {
-            _showOverlay(currentValue);
-          }
-        });
-      } else {
-        _showOverlay(currentValue);
-      }
-      _lastValue = currentValue;
+    if (showAnimation) {
+      _messageTimer?.cancel();
+      _messageTimer = Timer(
+        const Duration(seconds: 2),
+        () => _updateOverlay(count),
+      );
     }
   }
 
-  // 위젯 초기화 메서드
   @override
   void initState() {
     super.initState();
-    // TaskHandler로부터 데이터를 받기 위한 콜백 등록
-    FlutterForegroundTask.addTaskDataCallback(_onReceiveTaskData);
-
-    // UI 렌더링 후 권한 요청 및 서비스 초기화
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await _requestPermissions();
-      _initForegroundTask();
-      await _startForegroundService(); // 서비스 자동 시작
-
-      // 초기 오버레이 표시
-      if (_taskDataListenable.value is int) {
-        _showOverlay(_taskDataListenable.value as int);
+    FlutterForegroundTask.addTaskDataCallback((data) {
+      if (data is int) {
+        final previousValue = _counter.value;
+        _counter.value = data;
+        // 이전 값이 있고, 현재 값이 더 큰 경우에만 애니메이션 표시
+        _updateOverlay(data,
+            showAnimation: previousValue != null && data > previousValue);
       }
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeService();
     });
   }
 
-  // 위젯 정리 메서드
   @override
   void dispose() {
     _messageTimer?.cancel();
     _overlayEntry?.remove();
-    // TaskHandler로부터 데이터를 받는 콜백 제거
-    FlutterForegroundTask.removeTaskDataCallback(_onReceiveTaskData);
-    _taskDataListenable.dispose();
+    FlutterForegroundTask.removeTaskDataCallback((data) {});
+    _counter.dispose();
     super.dispose();
   }
 
-  // UI 빌드 메서드
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -261,51 +200,14 @@ class _ExamplePageState extends State<ExamplePage> {
         initialEntries: [
           OverlayEntry(
             builder: (context) => WithForegroundTask(
-              child: Scaffold(
-                appBar: _buildAppBar(),
-                body: _buildContent(),
-              ),
+              child: Container(),
             ),
-          ),
+          )
         ],
       ),
     );
   }
-
-  // 앱바 빌드 메서드
-  AppBar _buildAppBar() {
-    return AppBar(
-      title: const Text('Flutter Foreground Task'),
-      centerTitle: true,
-    );
-  }
-
-  // 본문 컨텐츠 빌드 메서드
-  Widget _buildContent() {
-    return SafeArea(
-      child: ValueListenableBuilder(
-        valueListenable: _taskDataListenable,
-        builder: (context, data, _) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                const Text('TaskHandler로부터 받은 데이터:'),
-                Text(
-                  '$data',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
 }
-
-
-
 
 
 // E/flutter ( 9442): [ERROR:flutter/runtime/dart_isolate.cc(862)] Could not resolve main entrypoint function.
