@@ -24,37 +24,44 @@ class _DraggableCounterOverlayState extends State<DraggableCounterOverlay> {
 
   @override
   Widget build(BuildContext context) {
+    // DefaultTextStyle을 최상위에 추가하고 Material 위젯으로 감싸서
+    // 텍스트 스타일 관련 경고를 해결합니다.
     return Positioned(
       left: position.dx,
       top: position.dy,
-      child: GestureDetector(
-        onPanUpdate: (details) {
-          setState(() {
-            position = Offset(
-              position.dx + details.delta.dx,
-              position.dy + details.delta.dy,
-            );
-          });
-        },
-        child: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.blue.withOpacity(0.9),
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.2),
-                spreadRadius: 1,
-                blurRadius: 3,
-                offset: const Offset(0, 2),
-              ),
-            ],
+      child: Material(
+        type: MaterialType.transparency,
+        child: DefaultTextStyle(
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontFamily: 'Roboto', // 기본 폰트 지정
+            decoration: TextDecoration.none, // 텍스트 밑줄 제거
           ),
-          child: Text(
-            message,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
+          child: GestureDetector(
+            onPanUpdate: (details) {
+              setState(() {
+                position = Offset(
+                  position.dx + details.delta.dx,
+                  position.dy + details.delta.dy,
+                );
+              });
+            },
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    spreadRadius: 1,
+                    blurRadius: 3,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Text(message), // Text 위젯의 스타일은 DefaultTextStyle에서 상속
             ),
           ),
         ),

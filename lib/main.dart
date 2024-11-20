@@ -22,7 +22,6 @@ void main() {
 
 // Foreground Task를 처리하는 핸들러 클래스
 class MyTaskHandler extends TaskHandler {
-  static const String incrementCountCommand = 'incrementCount'; // 카운트 증가 명령어
   int _count = 0; // 카운터 변수
 
   // 카운트 증가 및 알림 업데이트 메서드
@@ -64,13 +63,9 @@ class MyTaskHandler extends TaskHandler {
   }
 
   // UI로부터 데이터 수신 시 호출되는 메서드
-  // _incrementCount() 에서 카운터를 전달받음
   @override
   void onReceiveData(Object data) {
     debugPrint('onReceiveData: $data');
-    if (data == incrementCountCommand) {
-      _incrementCount();
-    }
   }
 }
 
@@ -120,13 +115,11 @@ class _ExamplePageState extends State<ExamplePage> {
   // 필요한 권한 요청 메서드
   Future<void> _requestPermissions() async {
     if (Platform.isAndroid) {
-      // Android 13 이상에서 필요한 알림 권한 요청
       final NotificationPermission notificationPermission =
           await FlutterForegroundTask.checkNotificationPermission();
       if (notificationPermission != NotificationPermission.granted) {
         await FlutterForegroundTask.requestNotificationPermission();
       }
-
       // onNotificationPressed 함수가 호출되려면 "android.permission.SYSTEM_ALERT_WINDOW" 권한이 필요합니다.
       // 권한이 거부된 상태에서 알림이 눌리면,
       // onNotificationPressed 함수는 호출되지 않고 앱이 열립니다.
@@ -154,7 +147,7 @@ class _ExamplePageState extends State<ExamplePage> {
     }
   }
 
-  void _initService() {
+  void _initForegroundTask() {
     FlutterForegroundTask.init(
       // 안드로이드 알림 옵션 설정
       androidNotificationOptions: AndroidNotificationOptions(
@@ -181,7 +174,7 @@ class _ExamplePageState extends State<ExamplePage> {
   }
 
   // 서비스 시작 함수
-  Future<ServiceRequestResult> _startService() async {
+  Future<void> _startForegroundService() async {
     debugPrint('Attempting to start foreground service...');
 
     // 이미 실행 중이면 재시작
@@ -189,21 +182,15 @@ class _ExamplePageState extends State<ExamplePage> {
     //   return FlutterForegroundTask.restartService();
     // }
     // 새로 시작
-    return FlutterForegroundTask.startService(
+    await FlutterForegroundTask.startService(
       serviceId: 256,
       notificationTitle: '포그라운드 서비스가 실행 중입니다',
       notificationText: '앱으로 돌아가려면 탭하세요',
-      notificationIcon: null,
-      notificationButtons: [
-        const NotificationButton(id: 'btn_hello', text: 'hello'),
-      ],
+      // notificationButtons: [
+      //   const NotificationButton(id: 'btn_hello', text: 'hello'),
+      // ],
       callback: startCallback,
     );
-  }
-
-  // 서비스 중지 함수
-  Future<ServiceRequestResult> _stopService() async {
-    return FlutterForegroundTask.stopService();
   }
 
   // TaskHandler로부터 데이터 수신 시 호출되는 콜백
@@ -230,14 +217,8 @@ class _ExamplePageState extends State<ExamplePage> {
       } else {
         _showOverlay(currentValue);
       }
-
       _lastValue = currentValue;
     }
-  }
-
-  // UI에서 카운트 증가 요청 메서드
-  void _incrementCount() {
-    FlutterForegroundTask.sendDataToTask(MyTaskHandler.incrementCountCommand);
   }
 
   // 위젯 초기화 메서드
@@ -250,7 +231,8 @@ class _ExamplePageState extends State<ExamplePage> {
     // UI 렌더링 후 권한 요청 및 서비스 초기화
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _requestPermissions();
-      _initService();
+      _initForegroundTask();
+      await _startForegroundService(); // 서비스 자동 시작
 
       // 초기 오버레이 표시
       if (_taskDataListenable.value is int) {
@@ -298,59 +280,30 @@ class _ExamplePageState extends State<ExamplePage> {
     );
   }
 
-  // // 본문 컨텐츠 빌드 메서드
+  // 본문 컨텐츠 빌드 메서드
   Widget _buildContent() {
     return SafeArea(
-      child: Column(
-        children: [
-          Expanded(child: _buildCommunicationText()),
-          _buildServiceControlButtons(),
-        ],
-      ),
-    );
-  }
-
-  // TaskHandler로부터 받은 데이터 표시 위젯
-  Widget _buildCommunicationText() {
-    return ValueListenableBuilder(
-      valueListenable: _taskDataListenable,
-      builder: (context, data, _) {
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              const Text('TaskHandler로부터 받은 데이터:'),
-              Text('$data', style: Theme.of(context).textTheme.headlineMedium),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // 서비스 제어 버튼 빌드 메서드
-  Widget _buildServiceControlButtons() {
-    // 버튼 생성 헬퍼 함수
-    buttonBuilder(String text, {VoidCallback? onPressed}) {
-      return ElevatedButton(
-        onPressed: onPressed,
-        child: Text(text),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          buttonBuilder('서비스 시작', onPressed: _startService),
-          buttonBuilder('서비스 중지', onPressed: _stopService),
-          buttonBuilder('카운트 증가', onPressed: _incrementCount),
-        ],
+      child: ValueListenableBuilder(
+        valueListenable: _taskDataListenable,
+        builder: (context, data, _) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                const Text('TaskHandler로부터 받은 데이터:'),
+                Text(
+                  '$data',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
 }
+
 
 
 
